@@ -144,6 +144,10 @@ Rules for the map:
 - A copy is also reachable at `/agents.json` (some agents/graders probe the root as well as `/.well-known/`).
 - **Auto-discovery:** the page `<head>` carries `<link>` tags pointing to both `/llms.txt` and `/.well-known/agents.json`; `robots.txt` does not block either path.
 - One source of truth: the manifest's data matches `llms.txt` and the WebMCP tools (Foundation 4).
+**Conform to the real spec — don't cargo-cult a grader.** Third-party "AI-readiness" checkers invent their own rubrics; build to the published spec, not a tool's idiosyncrasies. Two traps seen in the wild:
+- **Typed actions live in `flows[].actions[]` → OpenAPI operations. Do NOT add a top-level `actions` array.** Some graders look for one and report a spec-correct file as "no actions." That array isn't in the agents.json spec; adding it to pass a test spreads a non-standard shape. If a grader demands it, fix the grader, not the file.
+- **Don't invent an instructions file (e.g. `agent-instructions.md`).** It isn't a standard. Agent behavioral guidance belongs in agents.json `info.description` and `llms.txt`. The real named standard, `AGENTS.md`, is repo/coding-agent oriented (build/test/style rules), not for web-browsing agents.
+**Adoption reality (don't oversell).** schema.org, `robots.txt`, and `sitemap.xml` are consumed by crawlers today — the proven layer. `llms.txt` and `agents.json` are publisher-side and not yet systematically fetched by the major agents; treat them as low-cost, forward-looking bets. Of the two, `llms.txt` is the stronger bet (referenced repeatedly in Google docs). Never tell a client agents.json is a live ranking input.
 **Where it lives.** A site-scope build/SEO step writes the three files (data endpoint, OpenAPI source, manifest + root copy); the render/`<head>` template emits the two discovery `<link>` tags. Spec: github.com/wild-card-ai/agents-json. Worked reference: `getsightline.com`. Template in `references/schema-and-webmcp.md`.
 
 ---
