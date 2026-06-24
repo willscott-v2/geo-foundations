@@ -1,10 +1,10 @@
 ---
 name: geo-foundations
 metadata:
-  version: 1.1.0
+  version: 1.2.0
   lastReviewed: 2026-06
   author: Will Scott
-description: When the user wants to make a web page (or site) structurally ready to be found, understood, and cited by AI search and agents — the technical foundation layer beneath content. Use when the user mentions "GEO foundations," "AI search readiness," "agent-ready page," "make this page AI-citable," "web MCP" / "WebMCP," "llms.txt," "connected schema" / "entity graph," "AEO foundations," "structured data for AI," or "get cited by ChatGPT / Perplexity / AI Overviews." Stack-agnostic; works page-by-page.
+description: When the user wants to make a web page (or site) structurally ready to be found, understood, and cited by AI search and agents — the technical foundation layer beneath content. Use when the user mentions "GEO foundations," "AI search readiness," "agent-ready page," "make this page AI-citable," "web MCP" / "WebMCP," "llms.txt," "agents.json" / "agent manifest," "connected schema" / "entity graph," "AEO foundations," "structured data for AI," or "get cited by ChatGPT / Perplexity / AI Overviews." Stack-agnostic; works page-by-page.
 ---
 
 # GEO Foundations
@@ -15,9 +15,9 @@ This is the *plumbing* layer: it makes sure a crawler can reach the page, an LLM
 
 ## What this skill is for
 
-Apply or audit the seven foundations below on **one page at a time**. A client site rarely gets rebuilt all at once — you harden the homepage, then the top service/product page, then the next. Each page is independently shippable. Three of the seven are site-scope prerequisites (robots, sitemap, llms.txt); the rest are per-page.
+Apply or audit the eight foundations below on **one page at a time**. A client site rarely gets rebuilt all at once — you harden the homepage, then the top service/product page, then the next. Each page is independently shippable. Four of the eight are site-scope prerequisites (robots, sitemap, llms.txt, agents.json); the rest are per-page.
 
-**If you only do three:** (1) crawl access — Foundation 1, (2) connected entity schema — Foundation 2, (3) answer-first + FAQ parity — Foundation 3. Those carry most of the citation weight; foundations 4–7 are upside. Triage to them first on a small budget or a quick pass.
+**If you only do three:** (1) crawl access — Foundation 1, (2) connected entity schema — Foundation 2, (3) answer-first + FAQ parity — Foundation 3. Those carry most of the citation weight; foundations 4–8 are upside. Triage to them first on a small budget or a quick pass.
 
 **Templatize at scale.** "One page at a time" is the right unit for *hardening and verifying*. But on a site with dozens or hundreds of pages, you don't hand-edit each one — inject the schema graph, share meta, and WebMCP script into the layout/`<head>` template once, parameterized per page, then verify a representative sample per template (homepage, a service/product page, an article). The runbook checks still run per URL.
 
@@ -34,7 +34,7 @@ Each foundation below names the *layer* where the logic typically lives — copy
    - **Prefer server-rendered JSON-LD** (in the page source / framework head API) over injecting it via Google Tag Manager — GTM-injected structured data is not reliably parsed by all crawlers.
    - **Constrained / no-code stacks** (Webflow, Squarespace, Wix, locked-down WordPress) may not allow an arbitrary end-of-`<body>` script (Foundation 4) or custom `<head>`. Apply what the platform permits — schema via a custom-code embed or SEO plugin, share meta via the platform's fields — and explicitly defer (don't fake) what you can't inject. Note the deferral in the report.
 2. **Gather verified facts** for the page's primary entity (see Foundation 2 — nothing in schema may be model-invented).
-3. **Apply the seven foundations** in order, per page. Site-scope items (1, 3-llms.txt) once per site.
+3. **Apply the eight foundations** in order, per page. Site-scope items (1, 3-llms.txt, 8) once per site.
 4. **Verify against the runbook** — `references/runbook.md`. Every page must pass its checklist before you call it done.
 5. **Report** what passed, what's deferred, and (if possible) run the AI-visibility outcome check.
 
@@ -42,7 +42,7 @@ Templates to copy: `references/schema-and-webmcp.md`.
 
 ---
 
-## The seven foundations
+## The eight foundations
 
 Each: the principle, why it matters for AI search, the acceptance criteria (what "done" means), and where the logic typically lives in an implementation.
 
@@ -134,8 +134,20 @@ Rules for the map:
 **Scope boundary.** This foundation is the low-risk image win, not full performance tuning. Core Web Vitals (LCP, CLS, INP) matter for ranking and UX but a real CWV pass — render-blocking resources, font loading, JS cost — is its own engagement. Flag a failing CWV result here; fix it outside this skill.
 **Where it lives.** An image helper in the renderer emits the `<picture>`; a build step generates the WebP sibling (e.g. sharp).
 
+### 8. Agent action manifest (agents.json + auto-discovery)  *(site-scope)*
+**Principle.** Publish a machine-readable manifest of the **actions** an agent can take on the site — at `/.well-known/agents.json` — and make it (plus `llms.txt`) discoverable from the page `<head>`.
+**Why.** `llms.txt` and schema tell an agent what the site *is*; `agents.json` tells it what it can *do* and how to chain the calls. It's the executable layer of agent-readiness and a check in Lighthouse's experimental Agentic-Browsing audit (and third-party graders). Adoption by the engines is still early — treat it as low-cost, forward-looking insurance, not a proven ranking input.
+**Truthfulness gate.** A manifest must only describe **real, reachable, typed** operations. Never invent endpoints. On a brochure/static site with no API, expose the facts you already publish as a small read-only JSON endpoint (mirror the WebMCP/`llms.txt` data — one source of truth) and describe *that*. Do not fabricate booking/checkout POST actions a site can't actually serve.
+**Acceptance.**
+- `/.well-known/agents.json` returns `200 application/json` and conforms to the agents.json spec (v0.1.0): top-level `agentsJson`, `info` (`title`/`version`/`description` — put the natural-language **agent instructions** in `description`), `sources`, and `flows`.
+- **Actions are typed:** each `flows[].actions[]` references an `operationId` defined in a real OpenAPI `sources[].path` (also served on the domain), whose operations carry typed request/response schemas. The endpoints the OpenAPI names actually resolve.
+- A copy is also reachable at `/agents.json` (some agents/graders probe the root as well as `/.well-known/`).
+- **Auto-discovery:** the page `<head>` carries `<link>` tags pointing to both `/llms.txt` and `/.well-known/agents.json`; `robots.txt` does not block either path.
+- One source of truth: the manifest's data matches `llms.txt` and the WebMCP tools (Foundation 4).
+**Where it lives.** A site-scope build/SEO step writes the three files (data endpoint, OpenAPI source, manifest + root copy); the render/`<head>` template emits the two discovery `<link>` tags. Spec: github.com/wild-card-ai/agents-json. Worked reference: `getsightline.com`. Template in `references/schema-and-webmcp.md`.
+
 ---
 
 ## Output
 
-When you finish a page, state plainly: which of the seven now pass (with the evidence — quote the tag / show the validator result), which are deferred and why, and the site-scope items still outstanding. Don't claim a foundation is in place without showing the check. If something can't be verified, say so.
+When you finish a page, state plainly: which of the eight now pass (with the evidence — quote the tag / show the validator result), which are deferred and why, and the site-scope items still outstanding. Don't claim a foundation is in place without showing the check. If something can't be verified, say so.

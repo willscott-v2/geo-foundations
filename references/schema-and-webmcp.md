@@ -252,3 +252,60 @@ Website: {{origin}}
 - [{{Page}}]({{url}})
 ```
 Build it from the same verified facts as the schema and WebMCP — one source of truth across all three surfaces (schema, WebMCP, llms.txt) so an agent gets a consistent answer wherever it looks.
+
+Add a discovery section so an agent that lands on `llms.txt` finds the action manifest:
+```markdown
+## For agents
+- Action manifest (agents.json): {{origin}}/.well-known/agents.json
+- Structured facts (JSON): {{origin}}/api/{{site}}.json
+```
+
+---
+
+## 6. agents.json + OpenAPI source  *(Foundation 8 — `/.well-known/`, `application/json`)*
+
+The manifest (`agents.json`) describes the **actions** an agent can take; it references an OpenAPI `source` that types those actions against **real, reachable** endpoints. Three files + two `<head>` links. **Never describe an endpoint that doesn't resolve.** On a site with no API, expose the facts you already publish as one read-only JSON endpoint and describe *that* — same single source as schema/WebMCP/llms.
+
+**a) The real data endpoint** — `/api/{{site}}.json` (mirror the WebMCP/llms facts):
+```json
+{ "business": { "name": "{{…}}", "url": "{{origin}}", "...": "…" },
+  "services": [ { "name": "{{…}}", "description": "{{…}}" } ],
+  "hours": [ { "day": "Monday", "value": "{{…}}" } ],
+  "contact": { "phone": "{{…}}", "website": "{{origin}}" } }
+```
+
+**b) OpenAPI source** — `/.well-known/openapi.json` (types the action):
+```json
+{ "openapi": "3.1.0",
+  "info": { "title": "{{Name}} Site API", "version": "1.0.0", "description": "{{…}}" },
+  "servers": [ { "url": "{{origin}}" } ],
+  "paths": { "/api/{{site}}.json": { "get": {
+    "operationId": "getBusinessInfo",
+    "summary": "{{…}}",
+    "responses": { "200": { "description": "{{…}}",
+      "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BusinessInfo" } } } } } } } },
+  "components": { "schemas": { "BusinessInfo": { "type": "object",
+    "required": ["business","services","hours","contact"], "properties": { "...": "… typed …" } } } } }
+```
+
+**c) The manifest** — `/.well-known/agents.json` (also copy to `/agents.json`; some agents probe root):
+```json
+{ "agentsJson": "0.1.0",
+  "info": { "title": "{{Name}} Agent Actions", "version": "1.0.0",
+    "description": "{{Agent instructions in natural language — what the flows do and how to act on the results. See {{origin}}/llms.txt.}}" },
+  "sources": [ { "id": "site", "path": "{{origin}}/.well-known/openapi.json", "description": "{{…}}" } ],
+  "overrides": [],
+  "flows": [ { "id": "get_business_info_flow", "title": "{{…}}", "description": "{{…}}",
+    "actions": [ { "id": "get_business_info", "sourceId": "site", "operationId": "getBusinessInfo" } ],
+    "links": [],
+    "fields": { "parameters": {}, "requestBody": {},
+      "responses": { "business": "getBusinessInfo.responses.200.business", "...": "…" } } } ] }
+```
+
+**d) Auto-discovery** — in every page `<head>`:
+```html
+<link rel="alternate" type="text/plain" title="llms.txt" href="/llms.txt">
+<link rel="alternate" type="application/json" title="agents.json" href="/.well-known/agents.json">
+```
+
+`info.description` carries the natural-language **agent instructions** (covers that check). Spec: github.com/wild-card-ai/agents-json (v0.1.0). Worked reference: `getsightline.com` (`.well-known/agents.json` + `.well-known/openapi.json` + `api/sightline.json`); in a site generator, emit these in the SEO/build stage (e.g. `buildAgentsJson()`/`buildOpenApi()`/`buildBusinessInfo()`).

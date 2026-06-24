@@ -35,6 +35,25 @@ curl -fsSI "$ORIGIN/llms.txt" | grep -i '200\|content-type'
 ```
 PASS = `200` and `text/plain`. Body should carry an H1, a one-line summary, and links to the key pages.
 
+**4. agents.json present, well-formed, typed (Foundation 8)**
+```sh
+curl -fsSL "$ORIGIN/.well-known/agents.json" | node -e '
+  const d=JSON.parse(require("fs").readFileSync(0,"utf8"));
+  console.log("agentsJson:", d.agentsJson);
+  console.log("info ok:", !!(d.info&&d.info.title&&d.info.version&&d.info.description));
+  console.log("sources:", (d.sources||[]).map(s=>s.path).join(", "));
+  console.log("flows:", (d.flows||[]).length, "| actions w/ operationId:",
+    (d.flows||[]).flatMap(f=>f.actions||[]).filter(a=>a.operationId).length);'
+curl -fsSI "$ORIGIN/agents.json" | grep -i '200'                 # root copy also reachable
+# each sources[].path must itself resolve and define the referenced operationIds:
+curl -fsSI "$ORIGIN/.well-known/openapi.json" | grep -i '200'
+```
+PASS = `200 application/json`; valid `agentsJson` version; `info` carries the natural-language agent instructions in `description`; every action's `operationId` is defined in a reachable OpenAPI `source` with typed request/response schemas. **No invented endpoints** — every operation the OpenAPI names must actually resolve. Also confirm `<head>` auto-discovery:
+```sh
+printf '%s' "$PAGE" | grep -oE '<link[^>]*href="(/llms\.txt|/\.well-known/agents\.json)"[^>]*>'
+```
+PASS = `<link>` tags pointing to both `/llms.txt` and `/.well-known/agents.json`.
+
 ---
 
 ## Per-page checklist
